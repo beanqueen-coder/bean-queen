@@ -1,0 +1,75 @@
+/* ─── Protein Queen · Print Styles ─────────────────────────────────────────
+   Applied only when printing (from grocery.html).                             */
+
+@media print {
+  /* Hide everything except the grocery output */
+  .site-header,
+  .grocery-actions,
+  .grocery-selector-panel,
+  #settings-modal,
+  .btn {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+    font-family: Georgia, serif;
+  }
+
+  .main-content {
+    max-width: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .grocery-layout {
+    display: block;
+  }
+
+  .grocery-output {
+    display: block !important;
+  }
+
+  .panel {
+    border: none;
+    box-shadow: none;
+  }
+
+  .panel__header {
+    font-size: 14pt;
+    border-bottom: 2px solid #000;
+    margin-bottom: 1rem;
+  }
+
+  .grocery-category__title {
+    font-size: 9pt;
+    letter-spacing: .12em;
+    border-bottom: 1.5pt solid #000;
+    padding-bottom: 3pt;
+    margin-top: 18pt;
+  }
+
+  .grocery-item {
+    font-size: 10.5pt;
+    border-bottom: .5pt solid #ccc;
+    padding: 3pt 0;
+  }
+
+  .grocery-item__qty {
+    color: #444;
+  }
+
+  /* Page header */
+  .print-header {
+    font-size: 18pt;
+    font-weight: bold;
+    margin-bottom: 6pt;
+    border-bottom: 2pt solid #000;
+    padding-bottom: 6pt;
+  }
+
+  a { color: #000; text-decoration: none; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

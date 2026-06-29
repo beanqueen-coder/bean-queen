@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Protein Queen — Grocery List</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/print.css">
+</head>
+<body>
+
+<!-- ── Header ───────────────────────────────────────────────────────────── -->
+<header class="site-header">
+  <a href="index.html" class="site-header__logo">Protein <span>Queen</span></a>
+  <nav class="site-nav">
+    <a href="index.html">Days</a>
+    <a href="grocery.html" class="active">Grocery List</a>
+  </nav>
+  <button id="settings-btn" title="Settings" aria-label="Open settings">⚙️</button>
+</header>
+
+<!-- ── Settings Modal ───────────────────────────────────────────────────── -->
+<div id="settings-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal__header">
+      <h2 id="settings-title">Settings</h2>
+      <button class="modal__close" id="settings-close" aria-label="Close settings">✕</button>
+    </div>
+    <div class="modal__body">
+      <div class="toggle-row">
+        <span class="toggle-label" id="cal-toggle-label">Show additional nutrition info</span>
+        <label class="toggle-switch" aria-label="Toggle additional nutrition info">
+          <input type="checkbox" id="cal-toggle">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main ─────────────────────────────────────────────────────────────── -->
+<main class="main-content">
+  <h1 class="page-title">Grocery <em>List</em></h1>
+
+  <div id="spinner">Loading your meals…</div>
+  <div id="load-error" hidden></div>
+
+  <div id="grocery-app" hidden>
+    <div class="grocery-layout">
+
+      <!-- LEFT: Day + Meal Selector -->
+      <div class="grocery-selector-panel panel">
+        <div class="panel__header">
+          <span>Select days</span>
+          <button class="btn btn--secondary" id="clear-all-btn" style="font-size:.78rem;padding:.3rem .65rem;">Clear all</button>
+        </div>
+        <div class="panel__body">
+          <div id="day-selector" class="day-selector"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Output -->
+      <div>
+        <!-- Actions bar -->
+        <div class="grocery-actions">
+          <button class="btn btn--primary" id="generate-btn">🛒 Generate list</button>
+          <button class="btn btn--secondary" id="copy-btn" disabled>📋 Copy as text</button>
+          <button class="btn btn--secondary" id="print-btn" disabled>🖨️ Print</button>
+        </div>
+
+        <!-- Output panel -->
+        <div class="panel">
+          <div class="panel__header" id="list-panel-header">
+            <span>Your grocery list</span>
+          </div>
+          <div class="panel__body">
+            <!-- Empty state -->
+            <div id="grocery-empty" class="grocery-empty">
+              <p>Nothing here yet</p>
+              <p>Select some days on the left, then hit Generate list.</p>
+            </div>
+
+            <!-- Generated output -->
+            <div id="grocery-output" class="grocery-output"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- ── Scripts ──────────────────────────────────────────────────────────── -->
+<script src="data/config.js"></script>
+<script src="js/data.js"></script>
+<script src="js/recipes.js"></script>
+<script src="js/nutrition.js"></script>
+<script src="js/grocery.js"></script>
+<script src="js/app.js"></script>
+<script>
+
+// ── Grocery Page Logic ──────────────────────────────────────────────────────
+
+let _days = [];
+
+// ── Build the day/meal selector UI ──────────────────────────────────────────
+function buildSelector() {
+  const container = document.getElementById("day-selector");
+  container.innerHTML = "";
+  _days = DataStore.getDays();
+
+  _days.forEach(({ dayNum, dayTheme }) => {
+    const meals = DataStore.getMealsForDay(dayNum);
+    const dayRow = document.createElement("div");
+    dayRow.className = "day-row";
+
+    // Day checkbox
+    const dayHeader = document.createElement("div");
+    dayHeader.className = "day-row__header";
+
+    const dayCb = document.createElement("input");
+    dayCb.type = "checkbox";
+    dayCb.id = `day-${dayNum}`;
+    dayCb.dataset.day = dayNum;
+
+    const dayLabel = document.createElement("label");
+    dayLabel.htmlFor = `day-${dayNum}`;
+    dayLabel.textContent = `Day ${dayNum} — ${dayTheme}`;
+
+    dayHeader.appendChild(dayCb);
+    dayHeader.appendChild(dayLabel);
+    dayRow.appendChild(dayHeader);
+
+    // Meal checkboxes (shown when day is checked)
+    const mealRows = document.createElement("div");
+    mealRows.className = "meal-rows";
+    mealRows.id = `day-${dayNum}-meals`;
+
+    meals.forEach(meal => {
+      const mRow = document.createElement("div");
+      mRow.className = "meal-row";
+
+      const mCb = document.createElement("input");
+      mCb.type = "checkbox";
+      mCb.id = `meal-${meal.mealId}`;
+      mCb.dataset.mealId = meal.mealId;
+      mCb.dataset.dayNum = dayNum;
+      mCb.checked = true;
+
+      const mLabel = document.createElement("label");
+      mLabel.htmlFor = `meal-${meal.mealId}`;
+      mLabel.textContent = `Meal ${meal.mealNum}: ${meal.mealName}`;
+
+      // Quantity input
+      const qtyInput = document.createElement("input");
+      qtyInput.type = "number";
+      qtyInput.className = "qty-input";
+      qtyInput.id = `qty-${meal.mealId}`;
+      qtyInput.value = "1";
+      qtyInput.min = "1";
+      qtyInput.max = "99";
+      qtyInput.dataset.mealId = meal.mealId;
+
+      const qtyLabel = document.createElement("span");
+      qtyLabel.className = "qty-label";
+      qtyLabel.textContent = "× servings";
+
+      mRow.appendChild(mCb);
+      mRow.appendChild(mLabel);
+      mRow.appendChild(qtyInput);
+      mRow.appendChild(qtyLabel);
+      mealRows.appendChild(mRow);
+    });
+
+    dayRow.appendChild(mealRows);
+    container.appendChild(dayRow);
+
+    // Toggle meal rows when day checkbox changes
+    dayCb.addEventListener("change", () => {
+      mealRows.classList.toggle("is-visible", dayCb.checked);
+      // Check/uncheck all meal boxes
+      mealRows.querySelectorAll("input[type=checkbox]").forEach(cb => { cb.checked = dayCb.checked; });
+    });
+  });
+}
+
+// ── Generate the grocery list ────────────────────────────────────────────────
+function generateList() {
+  // Collect checked meals with quantities
+  const selectedMeals = [];
+  const selectedDayNums = new Set();
+
+  document.querySelectorAll(".meal-rows input[type=checkbox]:checked").forEach(cb => {
+    const mealId = cb.dataset.mealId;
+    const dayNum = parseInt(cb.dataset.dayNum, 10);
+    const qtyInput = document.getElementById(`qty-${mealId}`);
+    const quantity = Math.max(1, parseInt(qtyInput?.value || "1", 10));
+    selectedMeals.push({ mealId, quantity });
+    selectedDayNums.add(dayNum);
+  });
+
+  const outputEl  = document.getElementById("grocery-output");
+  const emptyEl   = document.getElementById("grocery-empty");
+  const copyBtn   = document.getElementById("copy-btn");
+  const printBtn  = document.getElementById("print-btn");
+  const headerEl  = document.getElementById("list-panel-header").querySelector("span");
+
+  if (!selectedMeals.length) {
+    outputEl.classList.remove("is-visible");
+    emptyEl.style.display = "";
+    copyBtn.disabled = true;
+    printBtn.disabled = true;
+    headerEl.textContent = "Your grocery list";
+    return;
+  }
+
+  // Compute totals
+  const totalsMap = Nutrition.groceryList(selectedMeals);
+  const groups    = GroceryList.groupByCategory(totalsMap);
+
+  // Update header
+  const dayList = Array.from(selectedDayNums).sort((a,b)=>a-b).map(d=>`Day ${d}`).join(', ');
+  headerEl.textContent = `🛒 ${dayList}`;
+
+  // Render output
+  outputEl.innerHTML = "";
+  groups.forEach(({ category, items }) => {
+    const section = document.createElement("div");
+    section.className = "grocery-category";
+
+    const title = document.createElement("div");
+    title.className = "grocery-category__title";
+    title.textContent = category;
+    section.appendChild(title);
+
+    items.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "grocery-item";
+      row.innerHTML = `
+        <span class="grocery-item__name">${item.name}</span>
+        <span class="grocery-item__qty">${GroceryList.fmtQty(item.quantity)} ${item.unit}</span>
+      `;
+      section.appendChild(row);
+    });
+
+    outputEl.appendChild(section);
+  });
+
+  emptyEl.style.display = "none";
+  outputEl.classList.add("is-visible");
+  copyBtn.disabled = false;
+  printBtn.disabled = false;
+
+  // Store for copy/print
+  outputEl._plainText = GroceryList.toPlainText(groups, Array.from(selectedDayNums).sort((a,b)=>a-b));
+}
+
+// ── Button handlers ──────────────────────────────────────────────────────────
+document.getElementById("generate-btn").addEventListener("click", generateList);
+
+document.getElementById("copy-btn").addEventListener("click", () => {
+  const text = document.getElementById("grocery-output")._plainText;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("copy-btn");
+    const orig = btn.textContent;
+    btn.textContent = "✅ Copied!";
+    setTimeout(() => btn.textContent = orig, 2000);
+  });
+});
+
+document.getElementById("print-btn").addEventListener("click", () => window.print());
+
+document.getElementById("clear-all-btn").addEventListener("click", () => {
+  document.querySelectorAll(".day-selector input[type=checkbox]").forEach(cb => { cb.checked = false; });
+  document.querySelectorAll(".meal-rows").forEach(el => el.classList.remove("is-visible"));
+  document.getElementById("grocery-output").classList.remove("is-visible");
+  document.getElementById("grocery-empty").style.display = "";
+  document.getElementById("copy-btn").disabled = true;
+  document.getElementById("print-btn").disabled = true;
+  document.getElementById("list-panel-header").querySelector("span").textContent = "Your grocery list";
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+App.init(() => {
+  document.getElementById("grocery-app").hidden = false;
+  buildSelector();
+});
+
+</script>
+</body>
+</html>

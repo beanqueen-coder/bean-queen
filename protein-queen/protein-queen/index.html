@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Protein Queen — Day Browser</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/print.css">
+</head>
+<body>
+
+<!-- ── Header ───────────────────────────────────────────────────────────── -->
+<header class="site-header">
+  <a href="index.html" class="site-header__logo">Protein <span>Queen</span></a>
+  <nav class="site-nav">
+    <a href="index.html" class="active">Days</a>
+    <a href="grocery.html">Grocery List</a>
+  </nav>
+  <button id="settings-btn" title="Settings" aria-label="Open settings">⚙️</button>
+</header>
+
+<!-- ── Settings Modal ───────────────────────────────────────────────────── -->
+<div id="settings-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal__header">
+      <h2 id="settings-title">Settings</h2>
+      <button class="modal__close" id="settings-close" aria-label="Close settings">✕</button>
+    </div>
+    <div class="modal__body">
+      <div class="toggle-row">
+        <span class="toggle-label" id="cal-toggle-label">Show additional nutrition info</span>
+        <label class="toggle-switch" aria-label="Toggle additional nutrition info">
+          <input type="checkbox" id="cal-toggle">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main ─────────────────────────────────────────────────────────────── -->
+<main class="main-content">
+  <h1 class="page-title">35 Days of <em>Not Failing</em></h1>
+
+  <div id="spinner">Loading your meals…</div>
+  <div id="load-error" hidden></div>
+  <div id="days-container" class="days-grid"></div>
+</main>
+
+<!-- ── Scripts ──────────────────────────────────────────────────────────── -->
+<script src="data/config.js"></script>
+<script src="js/data.js"></script>
+<script src="js/recipes.js"></script>
+<script src="js/nutrition.js"></script>
+<script src="js/app.js"></script>
+<script>
+
+// ── Day Browser Page Logic ───────────────────────────────────────────────────
+
+function renderDayCard(day, { showCalories }) {
+  const { dayNum, dayTheme } = day;
+  const meals = DataStore.getMealsForDay(dayNum);
+  const dayNutr = Nutrition.forDay(dayNum);
+  const flags   = Nutrition.dayFlags(dayNum, showCalories);
+  const intro   = RecipeContent.getDayIntro(dayNum);
+  const isExempt = FLAG_EXEMPT_DAYS.includes(dayNum);
+
+  const card = document.createElement("article");
+  card.className = "day-card";
+  card.dataset.day = dayNum;
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  const header = document.createElement("div");
+  header.className = "day-card__header";
+  header.innerHTML = `
+    <span class="day-badge">Day ${dayNum}</span>
+    <span class="day-card__title">${dayTheme}</span>
+    <span class="day-card__toggle" aria-hidden="true">▼</span>
+  `;
+  header.addEventListener("click", () => card.classList.toggle("is-open"));
+  card.appendChild(header);
+
+  // ── Collapsed summary ─────────────────────────────────────────────────────
+  const summary = document.createElement("div");
+  summary.className = "day-card__summary";
+  summary.innerHTML = `
+    <span><strong>${Math.round(dayNutr.protein)}g</strong> protein</span>
+    <span><strong>${Math.round(dayNutr.fiber)}g</strong> fiber</span>
+    ${flags.length && !isExempt ? `<span>⚠️ ${flags.length} flag${flags.length > 1 ? 's' : ''}</span>` : ''}
+  `;
+  card.appendChild(summary);
+
+  // Collapsed meal names list
+  const mealNames = document.createElement("ul");
+  mealNames.className = "day-card__meal-names";
+  meals.forEach(m => {
+    const li = document.createElement("li");
+    li.textContent = m.mealName;
+    if (m.isStub) { const s = document.createElement("span"); s.className = "stub-badge ml-1"; s.textContent = "coming soon"; li.appendChild(s); }
+    mealNames.appendChild(li);
+  });
+  card.appendChild(mealNames);
+
+  // ── Expanded body ─────────────────────────────────────────────────────────
+  const body = document.createElement("div");
+  body.className = "day-card__body";
+
+  if (intro) {
+    const introEl = document.createElement("p");
+    introEl.className = "day-intro";
+    introEl.textContent = intro;
+    body.appendChild(introEl);
+  }
+
+  // Render each meal
+  meals.forEach(meal => body.appendChild(renderMealCard(meal, { showCalories, dayNum })));
+
+  // Day total
+  const dayTotal = document.createElement("div");
+  dayTotal.className = "day-total-row";
+  dayTotal.appendChild(App.renderNutritionRow(dayNutr, showCalories, true));
+  if (flags.length && !isExempt) {
+    const flagEl = App.renderFlags(flags);
+    if (flagEl) dayTotal.appendChild(flagEl);
+  }
+  body.appendChild(dayTotal);
+
+  card.appendChild(body);
+  return card;
+}
+
+function renderMealCard(meal, { showCalories, dayNum }) {
+  const { mealId, mealNum, mealName, isStub } = meal;
+  const rows   = DataStore.getRowsForMeal(mealId);
+  const nutr   = Nutrition.forMeal(mealId);
+  const flags  = Nutrition.mealFlags(mealId, dayNum);
+  const steps  = RecipeContent.getSteps(mealId);
+  const tip    = RecipeContent.getTip(mealId);
+  const notes  = RecipeContent.getNotes(mealId);
+
+  const card = document.createElement("div");
+  card.className = "meal-card";
+
+  // ── Meal header ───────────────────────────────────────────────────────────
+  const header = document.createElement("div");
+  header.className = "meal-card__header";
+
+  const titleRow = document.createElement("div");
+  titleRow.className = "meal-name";
+  titleRow.innerHTML = `<span class="meal-num-badge">Meal ${mealNum}</span>${mealName}`;
+  if (isStub) titleRow.innerHTML += ` <span class="stub-badge">coming soon</span>`;
+  header.appendChild(titleRow);
+
+  if (!isStub) {
+    // Plate ratio bar
+    header.appendChild(App.renderPlateBar(mealId));
+    // Nutrition
+    header.appendChild(App.renderNutritionRow(nutr, showCalories));
+    if (flags.length) { const f = App.renderFlags(flags); if (f) header.appendChild(f); }
+  }
+  card.appendChild(header);
+
+  if (isStub) return card; // Don't render body for stubs
+
+  // ── Meal body ─────────────────────────────────────────────────────────────
+  const body = document.createElement("div");
+  body.className = "meal-card__body";
+
+  // Ingredient list
+  const ul = document.createElement("ul");
+  ul.className = "ingredient-list";
+  rows.forEach(row => {
+    const ing = DataStore.getIngredient(row.ingredientId);
+    if (!ing) return;
+    const li = document.createElement("li");
+    const qty = `${Nutrition.fmt(row.quantity)} × ${ing.servingUnit}`;
+    li.innerHTML = `
+      <span class="ing-name">
+        ${ing.name}
+        ${ing.source === 'package_label' ? '<span class="ing-source-badge" title="Nutrition from package label">📦 label</span>' : ''}
+        ${row.isOptional ? '<em class="ing-optional"> (optional)</em>' : ''}
+      </span>
+      <span class="ing-qty">${qty}</span>
+    `;
+    if (row.notes) {
+      const note = document.createElement("span");
+      note.className = "ing-notes";
+      note.textContent = row.notes;
+      li.querySelector(".ing-name").appendChild(note);
+    }
+    ul.appendChild(li);
+  });
+  body.appendChild(ul);
+
+  // Cooking steps (collapsible)
+  if (steps.length) {
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "steps-toggle";
+    toggleBtn.innerHTML = `<span class="steps-toggle__arrow">▶</span> Cooking steps`;
+    body.appendChild(toggleBtn);
+
+    const stepsList = document.createElement("ol");
+    stepsList.className = "cooking-steps";
+    steps.forEach(step => {
+      const li = document.createElement("li");
+      li.textContent = step;
+      stepsList.appendChild(li);
+    });
+    body.appendChild(stepsList);
+
+    toggleBtn.addEventListener("click", () => {
+      const open = toggleBtn.classList.toggle("is-open");
+      stepsList.classList.toggle("is-open", open);
+    });
+  }
+
+  // Tip
+  if (tip) {
+    const tipEl = document.createElement("p");
+    tipEl.className = "meal-tip";
+    tipEl.textContent = tip;
+    body.appendChild(tipEl);
+  }
+
+  // Notes
+  if (notes) {
+    const notesEl = document.createElement("p");
+    notesEl.className = "meal-notes";
+    notesEl.textContent = notes;
+    body.appendChild(notesEl);
+  }
+
+  card.appendChild(body);
+  return card;
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+App.init(({ showCalories }) => {
+  const container = document.getElementById("days-container");
+  container.innerHTML = "";
+  const days = DataStore.getDays();
+
+  if (!days.length) {
+    container.innerHTML = `<p class="text-muted">No days found. Check your Sheets data and make sure the MealIngredients tab is published.</p>`;
+    return;
+  }
+
+  days.forEach(day => container.appendChild(renderDayCard(day, { showCalories })));
+});
+
+</script>
+</body>
+</html>
