@@ -6,7 +6,7 @@
 // Both tabs must be published as CSV:
 //   File → Share → Publish to web → select tab → CSV → Publish
 
-const SHEET_ID = "YOUR_SHEET_ID_HERE";
+const SHEET_ID = "1ZC54PQpAD3ypmmjDEKuV1a_Rp-CQHqVLnrnsL30I9m0";
 
 const SHEETS = {
   ingredients: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Ingredients`,
